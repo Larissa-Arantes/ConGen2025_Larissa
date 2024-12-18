@@ -65,7 +65,8 @@ java -jar snpEff.jar Elephant input.vcf -stats ${OUT}/${prefix}_summary.html -cs
 Familiarize yourself with the outputs. SnpEff will produce:
 1) An annotated vcf file. Check the info field (column X do the vcf) containing the annotation.
 
-![snpeff](https://github.com/user-attachments/assets/f4bec6ae-2e7b-4e17-85d1-89bb1b5d95b0)
+![Screenshot 2024-12-16 160012](https://github.com/user-attachments/assets/a53e24d4-10bf-4e15-8666-8937e4823912)
+
 
 2) a text file summarizing the number of variant types per gene
 3) an HTML file containing summary statistics about the variants and their annotations. Copy it to your local computer and open in a web browser.
