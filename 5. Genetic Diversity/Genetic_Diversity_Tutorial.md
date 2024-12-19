@@ -4,7 +4,7 @@
 
 Heterozygosity is a simple and informative statistic that can be obtained by analyzing whole-genome data. You can calculate the average heterozygosity of an individual or assess the local heterozygosity throughout the genome to answer more specific questions.
 
-There are many methods available to achieve this. In this tutorial, we will use two strategies. To obtain the average heterozygosity, we will manipulate the VCF file using bcftools and vcftools. To explore heterozygosity variation across the genome, we will use ANGSD and other associated tools.
+There are many methods available to achieve this. In this tutorial, we will use two strategies. To obtain the average heterozygosity, we will manipulate the VCF file using bcftools. To explore heterozygosity variation across the genome, we will use ANGSD and other associated tools.
 
 ### Average heterozygosity
 
@@ -13,24 +13,32 @@ There are many methods available to achieve this. In this tutorial, we will use 
 ```bash
 #!/bin/bash
 # FILENAME:  avg_het
-#SBATCH -A myallocation   # Allocation name 
+#SBATCH -A bio240351  # Allocation name
 #SBATCH --nodes=1         # Total # of nodes (must be 1 for serial job)
 #SBATCH --ntasks=1        # Total # of MPI tasks (should be 1 for serial job)
 #SBATCH --time=1:30:00    # Total run time limit (hh:mm:ss)
 #SBATCH -J avg_het     # Job name
-#SBATCH -o avg_het.o%j      # Name of stdout output file
-#SBATCH -e avg_het.e%j      # Name of stderr error file
-#SBATCH -p shared  # Queue (partition) name
-#SBATCH --mail-user=x-larantes@anvil.rcac.purdue.edu
+#SBATCH -o /home/YOUR_USERNAME/logs/avg_het.o%j      # Name of stdout output file
+#SBATCH -e /home/YOUR_USERNAME/logs/avg_het.e%j      # Name of stderr error file
+#SBATCH -p wholenode  # Queue (partition) name
+#SBATCH --mail-user=x-YOUR_USERNAME@anvil.rcac.purdue.edu
 #SBATCH --mail-type=all   # Send email to above address at begin and end of job
 
+#Load bcftools
 module load biocontainers/default
 module load bcftools/1.17
 
-#Replace these with the actual file names
-VCF_FILE="/pool/genomics/figueiroh/SMSC_2023_class/vcf/NN_6samples_HD_PASS_DP5.vcf.gz"
-OUTPUT_FILE="NN_heterozygosity_v5.tsv"
-GENOME_LENGTH=2468345093 #you can use the fasta index (.fai) to sum the total length of the genome
+#Define path to input files - do not change it
+VCF_FILE="/home/x-larantes/00_raw_data/elephants.chr.11.12.subset.vcf.gz"
+POPFILE="/home/x-larantes/x_scripts/popfile.txt"
+GENOME_LENGTH="152468515" #Sum of the chromosome lengths included in this analysis
+
+#Make a directory for saving outputs. Replace it with your actual username
+OUTPUT_PATH="/home/x-YOUR_USERNAME/05_heterozygosity"
+mkdir $OUTPUT_PATH
+
+#Define the output name. Replace it with your actual username
+OUTPUT_FILE="/home/x-YOUR_USERNAME/05_heterozygosity/elephants_heterozygosity.tsv"
 
 #Get a list of sample names from the VCF file
 SAMPLES=$(bcftools query -l $VCF_FILE)
@@ -44,35 +52,57 @@ for SAMPLE in $SAMPLES; do
   HETEROZYGOSITY=$(echo "scale=7; $HETEROZYGOUS / $GENOME_LENGTH" | bc)
   echo -e "$SAMPLE\t$HETEROZYGOUS\t$HETEROZYGOSITY" >> $OUTPUT_FILE
 done
+
+#Add population origin of each sample to the heterozygosity file
+awk 'NR==FNR {pop[$1]=substr($0, index($0, $2)); next} FNR==1 {print $0"\tPopulation"} FNR>1 {print $0"\t"pop[$1]}' $POPFILE $OUTPUT_FILE > temp && mv temp $OUTPUT_FILE
 ```
 
-This is a bash script that calculates the heterozygosity of each sample in a VCF file. It uses the bcftools command line tool to extract the list of sample names and calculate the number of heterozygous variants for each sample. The results are written to a tab-separated file with the name "heterozygosity.tsv" and two columns: "Sample" and "Heterozygosity". The script assumes that the VCF file is named "your\_vcf\_file.vcf" and is located in the same directory as the script. Copy this script to a file, give a name that ends with `.sh`, and run on interactive mode on Hydra using `bash command.sh`.
+This is a bash script that calculates the heterozygosity of each sample in a VCF file. It uses the bcftools command line tool to extract the list of sample names and calculate the number of heterozygous variants for each sample. The results are written to a tab-separated file with the name "heterozygosity.tsv" and two columns: "Sample" and "Heterozygosity". Then, the last command line add a last column with population origin of each individual. 
+Copy this script to a file, give a name that ends with `.sh`, and run it on Anvil using `sbatch command.sh`.
 
-#### b) Plot the results using the R script below:
+#### b) Plot the results using the R
+
+You can plot it with R in your local computer or using the interactive mode in the server.
+If you decide to use your own computer, copy the file `elephants_heterozygosity.tsv` to your local computer using `scp`.
+If you decide to use Anvil interact mode (login with `scp -X`), load the R module using `module load r/4.1.0` and then open R typing `R` in the terminal.
 
 ```r
+# Call ggplot library
 library(ggplot2)
 
-# Replace this with the actual file name
-INPUT_FILE <- "heterozygosity.tsv"
+# Choose the working directory
+setwd("/home/x-YOUR_USERNAME/heterozygosity/")
+
+# Define the input file
+INPUT_FILE <- "/home/x-YOUR_USERNAME/heterozygosity/elephants_heterozygosity.tsv"
 
 # Read in the data from the input file
-data <- read.table(INPUT_FILE, header=TRUE, sep="\\t")
+data <- read.table(INPUT_FILE, header=TRUE, sep="\t")
 
-# Create a scatter plot of heterozygosity values
-plot <- ggplot(data, aes(x=Sample, y=Heterozygosity)) +
-    geom_point(size=2) +
-    theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5)) +
-    labs(x="Sample", y="Heterozygosity")
+# Create a boxplot for heterozygosity by population
+plot <- ggplot(data, aes(x=Population, y=Heterozygosity, color=Population)) +
+  geom_boxplot(outlier.shape = NA, width=0.6, alpha=0.6, color="black") +  # Boxplot without outliers, adjust box width and transparency
+  geom_jitter(size=2, width=0.1, alpha=0.7) +  # Jittered dots for each individual with some horizontal spacing
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +  # Angle the x-axis labels for better readability
+  labs(x="Population", y="Heterozygosity", color="Population") +
+  scale_color_discrete(name="Population")  # Color legend for populations
 
 # Save the plot to a file
-ggsave("heterozygosity_plot.png", plot, width=10, height=5, dpi=300)
+ggsave("heterozygosity_boxplot_by_population.png", plot, width=10, height=6, dpi=300)
+
+# Show the plot
+print(plot)
+
+# Open with interactive mode
+svg("heterozygosity_boxplot_by_population.svg", width=10, height=6)
+print(plot)
+dev.off()
 ```
 
-This is an R code block that creates a scatter plot of heterozygosity values from a tab-separated value (tsv) file. The ggplot2 library is loaded, and the name of the input file is specified as "heterozygosity.tsv". The data is read in using the read.table function, and a scatter plot is created using ggplot with "Sample" on the x-axis and "Heterozygosity" on the y-axis. The resulting plot is saved as a png file named "heterozygosity_plot.png".
+This is an R code block that creates a boxplot plot of heterozygosity values from a tab-separated value (tsv) file. The ggplot2 library is loaded, and the name of the input file is specified as "heterozygosity.tsv". The data is read in using the read.table function, and a scatter plot is created using ggplot with "Sample" on the x-axis and "Heterozygosity" on the y-axis. The resulting plot is saved as a png file named "heterozygosity_boxplot_by_population.png".
 
 > [!IMPORTANT]
-> :elephant::grey_question: How is the genetic diversity of the savanna elephant compared to the forest elephants?
+> :elephant::grey_question: How does the genetic diversity of savanna elephants compare to that of forest elephants, and what factors might contribute to these differences? What could explain the observed levels of heterozygosity in the savanna elephants of Queen Elizabeth National Park (QENP), Uganda?
   
 ### Genome-wide heterozygosity
 
