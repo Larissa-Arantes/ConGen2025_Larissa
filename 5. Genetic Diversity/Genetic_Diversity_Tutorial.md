@@ -99,7 +99,7 @@ print(plot)
 dev.off()
 ```
 
-This is an R code block that creates a boxplot plot of heterozygosity values from a tab-separated value (tsv) file. The ggplot2 library is loaded, and the name of the input file is specified as "heterozygosity.tsv". The data is read in using the read.table function, and a scatter plot is created using ggplot with "Sample" on the x-axis and "Heterozygosity" on the y-axis. The resulting plot is saved as a png file named "heterozygosity_boxplot_by_population.png".
+This R code block generates a boxplot of heterozygosity values, grouping individuals by population, using data from a tab-separated value (TSV) file. The ggplot2 library is loaded, and the name of the input file is specified. The data is read in using the read.table function, and a boxplot is created using ggplot with "Populations" on the x-axis and "Heterozygosity" on the y-axis. The resulting plot is saved as a png file named "heterozygosity_boxplot_by_population.png".
 
 > [!IMPORTANT]
 > :elephant::grey_question: How does the genetic diversity of savanna elephants compare to that of forest elephants, and what factors might contribute to these differences? What could explain the observed levels of heterozygosity in the savanna elephants of Queen Elizabeth National Park (QENP), Uganda?
