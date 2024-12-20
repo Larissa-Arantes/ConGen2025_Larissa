@@ -125,34 +125,51 @@ Overall, ANGSD is a versatile and powerful tool for analyzing NGS data, particul
 
 ```bash
 #!/bin/bash
+# FILENAME:  genome_wide_het
+#SBATCH -A bio240351  # Allocation name
+#SBATCH --nodes=1         # Total # of nodes (must be 1 for serial job)
+#SBATCH --ntasks=1        # Total # of MPI tasks (should be 1 for serial job)
+#SBATCH --time=1:30:00    # Total run time limit (hh:mm:ss)
+#SBATCH -J genome_wide_het     # Job name
+#SBATCH -o /home/x-YOUR_USERNAME/logs/genome_wide_het.o%j      # Name of stdout output file
+#SBATCH -e /home/x-YOUR_USERNAME/logs/genome_wide_het.e%j      # Name of stderr error file
+#SBATCH -p wholenode  # Queue (partition) name
+#SBATCH --mail-user=x-YOUR_USERNAME@anvil.rcac.purdue.edu
+#SBATCH --mail-type=all   # Send email to above address at begin and end of job
 
-#Set variables
+#Load angsd
+module load biocontainers/default
+module load angsd/0.940
 
-input_bam_file="/pool/genomics/figueiroh/SMSC_2023/mapping/NN114296_cloud_leopard_sorted.bam"
-ancestral_fasta_file="/pool/genomics/figueiroh/SMSC_2023/reference/mNeoNeb1.pri.cur.20220520.fasta"
-reference_fasta_file="/pool/genomics/figueiroh/SMSC_2023/reference/mNeoNeb1.pri.cur.20220520.fasta"
-output_directory="/pool/genomics/figueiroh/SMSC_2023/heterozygosity"
-SAMPLE="NN114296"
+#Choose individual
+SAMPLE="SE2109" #CH0893 and SE2109
 
-module load bioinformatics/angsd/0.921
+#Choose the output directory
+output_directory="/home/x-YOUR_USERNAME/heterozygosity"
 
-#Loop through scaffolds 1 to 18
+#Set variables. Do not change this part.
+input_bam_file="/home/x-larantes/00_raw_data/${SAMPLE}.loxAfr4_NC000934"
+ancestral_fasta_file="/home/x-larantes/00_raw_data/loxAfr4.fasta"
+reference_fasta_file="/home/x-larantes/00_raw_data/loxAfr4.fasta"
 
-for i in {1..18}; do
-    
+#Loop through scaffolds 11 to 14
+
+for chr in {11..14}; do
+
     #Run ANGSD
-    angsd -P 10 -i ${input_bam_file} -anc ${ancestral_fasta_file} -dosaf 1 -gl 1 -C 50 -minQ 20 -minmapq 30 -fold 1 -out ${output_directory}/$SAMPLE.SUPER_${i} -ref ${reference_fasta_file} -r SUPER_${i}
-    
+    angsd -P 1 -i ${input_bam_file}_${chr}.bam -anc ${ancestral_fasta_file} -dosaf 1 -gl 1 -C 50 -minQ 20 -minmapq 30 -out ${output_directory}/$SAMPLE.chr_${chr} -ref ${reference_fasta_file}
+
     #Run realSFS
-    realSFS -nsites 200000 ${output_directory}/$SAMPLE.SUPER_${i}.saf.idx > ${output_directory}/$SAMPLE.SUPER_${i}.est.ml
+    realSFS -nsites 200000 ${output_directory}/$SAMPLE.chr_${chr}.saf.idx -fold 1 > ${output_directory}/$SAMPLE.chr_${chr}.est.ml
 
 done
 ```
 
-Replace the `<placeholders>` with the desired values for your specific analysis, and update the paths for input and output files as needed. The `$SAMPLE` variable should also be set to the appropriate sample name.
-
-This script will loop through scaffolds 1 to 18, running the ANGSD command and then the realSFS command for each scaffold. The results will be saved in the specified output directory.
-
+Replace the `<YOUR_USERNAME>` with your Anvil username, define the path where the output files will be saved, and choose a `$SAMPLE` variable to start running it.
+Because of our time and resource limitations, we are running this analysis only for 4 short chromosomes, from chr 11 to chr 14.
+This script will loop through chromosomes 11 to 14, running the ANGSD command and then the realSFS command for each chromosome.
+ANGSD will calculate the site allele frequency (SAF) likelihood based on individual genotype likelihoods assuming HWE. It generates 3 output binary files (angsdput.saf.idx, angsdput.saf.pos.gz and angsdput.saf.gz).
+realSFS will run an optimization of the .saf file, which will estimate the Site Frequency Spectrum (SFS). We are estimating it in windows of a fixed number of sites (200,000 bp). It generates an output file .est.ml, which we will further manipulate to plot the results.
 
 Make sure you understand each option in the ANGSD command line:
 
