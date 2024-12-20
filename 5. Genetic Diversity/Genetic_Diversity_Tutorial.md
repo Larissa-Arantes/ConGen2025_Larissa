@@ -165,7 +165,7 @@ for chr in {11..14}; do
 done
 ```
 
-Replace the `<YOUR_USERNAME>` with your Anvil username, define the path where the output files will be saved, and choose a `$SAMPLE` variable to start running it.
+Replace the `<YOUR_USERNAME>` with your Anvil username, define the path where the output files will be saved, and choose a `$SAMPLE` variable to start running it. Run it for two samples: `CH0893` and `SE2109`.
 Because of our time and resource limitations, we are running this analysis only for 4 short chromosomes, from chr 11 to chr 14.
 This script will loop through chromosomes 11 to 14, running the ANGSD command and then the realSFS command for each chromosome.
 ANGSD will calculate the site allele frequency (SAF) likelihood based on individual genotype likelihoods assuming HWE. It generates 3 output binary files (angsdput.saf.idx, angsdput.saf.pos.gz and angsdput.saf.gz).
@@ -195,90 +195,103 @@ Also, make sure you understand each option in the realSFS command line:
 
 #### b) Prepare files and plot heterozygosity along the scaffold
 
-Now we can add the sample name and scaffold number for each line in our output. This will make our work easier when we want to plot our results.
+Now let's prepare the `est.ml` files for plotting. The script below will combine the results for the two samples, and add the sample name and scaffold number for each line in our output. This will make our work easier when we want to plot our results.
+Copy this script to the server, replace `YOUR_USERNAME` by your Anvil userneme and run it using `sbatch`.
 
 ```bash
 #!/bin/bash
+# FILENAME:  genome_wide_het
+#SBATCH -A bio240351  # Allocation name
+#SBATCH --nodes=1         # Total # of nodes (must be 1 for serial job)
+#SBATCH --ntasks=1        # Total # of MPI tasks (should be 1 for serial job)
+#SBATCH --time=1:30:00    # Total run time limit (hh:mm:ss)
+#SBATCH -J genome_wide_het     # Job name
+#SBATCH -o /home/x-YOUR_USERNAME/logs/genome_wide_het.o%j      # Name of stdout output file
+#SBATCH -e /home/x-YOUR_USERNAME/logs/genome_wide_het.e%j      # Name of stderr error file
+#SBATCH -p wholenode  # Queue (partition) name
+#SBATCH --mail-user=x-YOUR_USERNAME@anvil.rcac.purdue.edu
+#SBATCH --mail-type=all   # Send email to above address at begin and end of job
 
-output_directory="path/to/your/output_directory"
-SAMPLE="your_sample_name"
+# Set the input and output directories
+input_directory="/home/x-YOUR_USERNAME/heterozygosity"
+output_directory="/home/x-YOUR_USERNAME/heterozygosity"
 
-# Loop through scaffolds 1 to 18
-for i in {1..18}; do
-  # Calculate the number of lines in the output file
-  num_lines=$(wc -l < ${output_directory}/$SAMPLE.SUPER_${i}.est.ml)
+# Define the list of sample IDs (space-separated)
+SAMPLES="CH0893 SE2109"
 
-  # Add the number of lines, sample name, and scaffold number to each line of the output file
-  awk -v lines="$num_lines" -v sample="$SAMPLE" -v scaffold="$i" '{print lines, sample, "SUPER_" scaffold, $0}' ${output_directory}/$SAMPLE.SUPER_${i}.est.ml > ${output_directory}/$SAMPLE.SUPER_${i}.est.ml.annotated
+# Create or clear the final concatenated output file
+output_file="${output_directory}/genome_wide_het_concatenated.txt" > "${output_file}"
 
-  # Optional: Move the annotated file to the original file
-  mv ${output_directory}/$SAMPLE.SUPER_${i}.est.ml.annotated ${output_directory}/$SAMPLE.SUPER_${i}.est.ml
+# Loop through the sample IDs
+for SAMPLE in $SAMPLES; do
+    # Loop through scaffolds 11 to 14
+    for i in {11..14}; do
+        # Define the current file path
+        input_file="${output_directory}/${SAMPLE}.chr_${i}.est.ml"
 
+        # Check if the input file exists
+        if [ -f "${input_file}" ]; then
+            # Calculate the number of lines in the current file
+            num_lines=$(wc -l < "${input_file}")
+
+            # Add the number of lines, sample name, and scaffold number to each line of the output file
+            awk -v lines="${num_lines}" -v sample="${SAMPLE}" -v scaffold="${i}" '{print lines, sample, "chr_" scaffold, $0}' "${input_file}" > "${output_directory}/${SAMPLE}.chr_${i}.est.ml.annotated"
+
+            # Move the annotated file to the original file
+            mv "${output_directory}/${SAMPLE}.chr_${i}.est.ml.annotated" "$input_file"
+
+            # Concatenate the annotated file to the final output file
+            cat "${input_file}" >> "${output_file}"
+        else
+            echo "Warning: File ${input_file} not found, skipping." >&2
+        fi
+    done
 done
 ```
 
-Concatenate files
-
-```bash
-#!/bin/bash
-
-Set the input and output directory
-
-input_directory="path/to/your/input_directory"
-output_directory="path/to/your/output_directory"
-
-Create a new output file
-
-output_file="${output_directory}/all_est_ml_concatenated.txt"
-
-Remove the output file if it already exists
-
-if [ -f "${output_file}" ]; then
-rm "${output_file}"
-fi
-
-Loop through all "[est.ml](http://est.ml/)" files and concatenate them
-for file in ${input_directory}/*.est.ml; do
-cat "${file}" >> "${output_file}"
-done
-```
-
-Plot the results for one chromosome using R
+Plot the results for the four chromosomes and two individuals using R:
 
 ```r
 # Load required libraries
+library(dplyr)
 library(tidyverse) # Collection of packages for data manipulation and visualization
 library(viridis)   # Package for generating color palettes
 library(scales)    # Package for scaling and formatting axis labels
 
-# Read data file and store it in the variable 'het_master'
-het_master <- read.table("/path/to/file/NN_SUPER.est.ml")
+# Read the data
+het_master <- read.table("path/to/genome_wide_het_concatenated.txt")
 
-# Manipulate the data
-het_master %>% 
-  rename(sample=V2) %>%          # Rename V2 as 'sample'
-  rename(chromosome = V3) %>%    # Rename V3 as 'chromosome'
-  mutate(heterozygosity = V5/(V4 + V5)) %>% # Calculate heterozygosity as V5 / (V4 + V5)
-  mutate(position = ((V1*200000)-200000))   %>% # Calculate position as (V1 * 200000) - 200000
-  filter(chromosome == "SUPER_2") %>% # Filter data to include only rows where 'chromosome' is 'SUPER_2'
+# Data manipulation
+het_master <- het_master %>%
+  rename(sample = V2, chromosome = V3) %>%
+  mutate(heterozygosity = V5 / (V4 + V5)   # Calculate heterozygosity as V5 / (V4 + V5)
+  ) %>%
+  group_by(sample, chromosome) %>%      # Group by sample and chromosome
+  mutate(position = row_number()               # Assign sequential numbers within each group
+  ) %>%
+  ungroup()                             # Remove the grouping after calculating position
 
-  # Create a ggplot2 plot
-  ggplot(aes(x=position, y=heterozygosity)) + # Set x-axis as 'position' and y-axis as 'heterozygosity'
-  geom_line(colour="grey",alpha=0.5) + # Add a line plot with grey color and 0.5 alpha (transparency)
-  geom_point(aes(colour=factor(chromosome))) + # Add points, color them based on 'chromosome' factor variable
-  scale_color_viridis(discrete = TRUE) + # Use viridis color palette for the points
-  facet_grid(sample ~ chromosome,scales = "free_x") + # Create a facet grid with 'sample' on the y-axis and 'chromosome' on the x-axis, set x-axis scales to be free
-  labs(x = NULL, y = "Heterozygosity\n") + # Remove x-axis labels and set y-axis label to "Heterozygosity\n"
-  scale_y_continuous(labels = comma) + # Format y-axis labels with commas
-  scale_x_continuous(labels = comma) + # Format x-axis labels with commas
-  theme_minimal() + # Apply a minimal theme to the plot
-  theme(legend.position = "none", # Remove legend
-        strip.text.x = element_text(face = "bold"), # Set strip text for x-axis to bold
-        strip.text.y = element_text(face = "bold"), # Set strip text for y-axis to bold
-        panel.grid.major.x = element_blank(), # Remove major x-axis gridlines
-        panel.grid.minor.x = element_blank(), # Remove minor x-axis gridlines
-        panel.spacing.x = unit(0, "line"), # Set panel spacing to zero
-        panel.border = element_rect(color = "black", fill = NA, size = 0.25)) # Add a black border around the panels
+# Plot all chromosomes
+barplot <- ggplot(het_master, aes(x = position, y = heterozygosity)) + 
+  geom_bar(stat = "identity", aes(fill = factor(chromosome)), width = 1) + # Bar plot with 'identity' stat
+  scale_fill_viridis(discrete = TRUE) + # Use viridis color palette for the bars
+  facet_grid(chromosome ~ sample, scales = "free_x") + # Facet by chromosome on the y-axis and sample on the x-axis
+  labs(x = NULL, y = "Heterozygosity\n") + # Label the y-axis
+  scale_y_continuous(labels = comma) + # Format y-axis with commas
+  scale_x_continuous(labels = comma) + # Format x-axis with commas
+  theme_minimal() + # Apply a minimal theme
+  theme(
+    legend.position = "none", # Remove the legend
+    strip.text.x = element_text(face = "bold"), # Make x-axis facet labels bold
+    strip.text.y = element_text(face = "bold"), # Make y-axis facet labels bold
+    panel.grid.major.x = element_blank(), # Remove x-axis gridlines
+    panel.grid.minor.x = element_blank(), # Remove minor x-axis gridlines
+    panel.spacing.x = unit(0, "line"), # Set panel spacing to zero
+    panel.border = element_rect(color = "black", fill = NA, size = 0.25) # Add black borders around panels
+  )
+
+print(barplot)
+ggsave("genome_wide_het.png", units = "in", width = 10, height = 5)
 ```
 
 > [!IMPORTANT]
