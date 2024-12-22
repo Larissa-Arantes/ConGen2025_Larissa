@@ -61,6 +61,7 @@ You can run this command on interactive mode.
 Two of the most basic statistics we can obtain from this analysis are the number of runs of homozygosity blocks (NROH) and the total length of genome that showed runs of homozygosity (SROH). These two values provide highly informative data, and the ratio between them is known as the inbreeding coefficient (FROH).
 
 You can use the following R script to estimate these values and plot the results.
+Let's start plotting the sum total length of ROH (SROH) versus the total number of ROH (NROH).
 
 ```r
 # Set the working directory
@@ -82,6 +83,7 @@ sroh <- roh %>%
   group_by(Sample) %>% 
   summarize(SROH = sum(RoH_length))
 
+# Combine population information
 data <- inner_join(nroh, sroh, by = "Sample") %>% 
   inner_join(roh %>% select(Sample, Population) %>% distinct(), by = "Sample")
 
@@ -90,26 +92,40 @@ head(data)
 
 # Create the plot using the preprocessed dataset
 snroh_plot <- data %>% 
-  ggplot(aes(x = SROH, y = NROH, color = Population)) + # Map color to Population
+  ggplot(aes(x = SROH, y = NROH, color = Population)) + 
   geom_point(size = 3) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5)) +
-  labs(title = "NROH vs. SROH", color = "Population") # Add a color legend title
+  labs(title = "NROH vs. SROH", color = "Population")
 
 # Print the plot
 print(snroh_plot)
 ggsave("sroh_nroh.png", snroh_plot, width = 8, height = 6, dpi = 300)
+```
 
+> [!IMPORTANT]
+>:elephant::grey_question: How can the comparison between the sum total length of runs of homozygosity (SROH) and the total number of runs of homozygosity (NROH) provide insights into the demographic history of savanna and forest elephants? This paper can help you to find an explanation: [https://drive.google.com/file/d/1VPbgsvdcFHzU7tLRbjR99shMq8xo06QE/view?usp=sharing].
+
+
+Now let’s group the RoH into three categories based on their lengths:
+* 500 kb – 1 Mb
+* 1 Mb – 2 Mb
+* > 2 Mb
+Note that the minimum length for considering a segment as a ROH is already relatively long (500 kb). Why do we set this minimum length?
+
+> [!HIDE]
+Remember:
+> :elephant: We can comparing species with very different levels of genetic diversity!
+> :elephant: According to Ceballos et al. 2018, very short RoHs (tens to hundreds of kb) reflect linkage disequilibrium patterns (that are not always considered autozygous); intermediate RoHs (hundreds of kb to 2 Mb) result from background relatedness owing to genetic drift; and long RoHs (over 1–2Mb) arise from recent parental relatedness. Note that these length thresholds are derived from studies on the human population and may vary significantly between species, depending on factors such as genome size, recombination rates, and heterozygosity.
+
+```r
 # Create RoH length categories
 roh_categories <- roh %>% 
-  mutate(
-    RoH_category = case_when(
+  mutate(RoH_category = case_when(
       RoH_length >= 500000 & RoH_length < 1000000 ~ "500 kb - 1 Mb",
       RoH_length >= 1000000 & RoH_length < 2000000 ~ "1 Mb - 2 Mb",
       RoH_length >= 2000000 ~ "> 2 Mb",
-      TRUE ~ NA_character_ # Assign NA to lengths < 500k
-    )
-  ) %>% 
+      TRUE ~ NA_character_ # Assign NA to lengths < 500k)) %>% 
   filter(!is.na(RoH_category)) # Remove rows where RoH_category is NA
 
 # Summing RoH_length by Sample, RoH_category, and Population
@@ -119,29 +135,35 @@ summed_roh <- roh_categories %>%
 
 # Create the stacked bar plot
 stacked_barplot <- summed_roh %>%
-  ggplot(aes(x = Sample, y = total_RoH_length/1000000, fill = RoH_category)) +  # Stack by RoH_category
+  ggplot(aes(x = Sample, y = total_RoH_length/1000000, fill = RoH_category)) +  
   geom_bar(stat = "identity") +
   facet_wrap(~ Population, nrow =1, scales = "free_x") +  # Facet by Population
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for readability
-    strip.text = element_text(angle = 90, size = 10)) +  # Emphasize facet labels
-  scale_y_continuous(labels = scales::comma) +  # Format y-axis labels as regular numbers with commas
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+    strip.text = element_text(angle = 90, size = 10)) + 
+  scale_y_continuous(labels = scales::comma) +  
   labs(x = "Sample", y = "Total RoH Length (Mb)", fill = "RoH Category")
 
 # Print the plot
 print(stacked_barplot)
 ggsave("stacked_barplot.png", stacked_barplot, width = 8, height = 6, dpi = 300)
+```
+> [!IMPORTANT]
+>:elephant::grey_question: Compare inbreeding level between savanna and forest elephants. When did the inbreeding happen?
 
+Next, let’s estimate the genomic inbreeding coefficient, FROH, for each individual. This metric quantifies the proportion of the autosomal genome that is autozygous. It is calculated as the sum total length of runs of homozygosity (SROH) over a specified minimum length, divided by the total length of the genome analyzed. For this analysis, we will define the minimum ROH length as 1 Mb. Note that the genome size considered corresponds only to the portion included in this tutorial analysis, which is limited to two chromosomes due to constraints on time and resources.
+
+```r
 #Estimate FROH
 
-# Define the total chromosome length in the analysis
+# Define the total genome length in the analysis (in our case, we included only two chromosomes)
 total_chromosome_length <- 152468515
 
 # Calculate FROH for each sample
 frohs <- roh_categories %>%
   filter(RoH_length > 1000000) %>%  # Only include RoH_length > 1 Mb
-  group_by(Sample) %>%              # Group by Sample
-  summarise(total_RoH_above_1Mb = sum(RoH_length)) %>%  # Sum the RoH_length for each sample
+  group_by(Sample) %>%              
+  summarise(total_RoH_above_1Mb = sum(RoH_length)) %>%  
   mutate(FROH = total_RoH_above_1Mb / total_chromosome_length)  # Calculate FROH
 
 # Join it with the original roh_categories to retain Population information
@@ -154,15 +176,14 @@ frohs_with_population$Sample <- factor(frohs_with_population$Sample,
 
 # Create a boxplot per population with individual dots per sample
 boxplot_froh <- frohs_with_population %>%
-  ggplot(aes(x = Population, y = FROH, color = Population)) +  # Map Population to x-axis and color
-  geom_boxplot(outlier.shape = NA, fill = "transparent", color = "black") +  # Boxplot without outliers shown
-  geom_jitter(aes(color = Population), size = 3, width = 0.2) +  # Add individual dots per sample
+  ggplot(aes(x = Population, y = FROH, color = Population)) + 
+  geom_boxplot(outlier.shape = NA, fill = "transparent", color = "black") +  
+  geom_jitter(aes(color = Population), size = 3, width = 0.2) +  
   theme_minimal() +  # Minimal theme for clean visualization
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for readability
-    axis.title.x = element_blank(),  # Optional: Remove x-axis title
-    axis.title.y = element_text(size = 12),  # Set y-axis title size
-    legend.position = "none" ) + # Remove legend, as colors are already mapped to Population
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+    axis.title.x = element_blank(),  
+    axis.title.y = element_text(size = 12), 
+    legend.position = "none" ) + 
   labs(y = "FROH", x = "Population")
 
 # Print the plot
@@ -171,6 +192,4 @@ ggsave("boxplot_froh.png", boxplot_froh, width = 8, height = 6, dpi = 300)
 ```
 
 > [!IMPORTANT]
->:elephant::grey_question: Compare inbreeding level between savanna and forest elephants. When did the inbreeding happen?
-
-
+>:elephant::grey_question: How do inbreeding levels relate to the heterozygosity levels of populations?
