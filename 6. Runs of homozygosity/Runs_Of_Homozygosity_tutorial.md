@@ -6,15 +6,7 @@ Moreover, ROH can also be used to identify deleterious mutations and genomic reg
 
 In this tutorial, we will demonstrate how to estimate ROH using the 'bcftools roh' plugin, which is a widely used tool for detecting ROH from VCF files. We will also discuss the interpretation and application of ROH results in different research contexts, such as conservation genetics, human population genetics, and animal breeding. By the end of this tutorial, you will have a better understanding of the biological significance and practical utility of ROH analysis.
 
-Please see below the location of the VCF file that we will use for the tutorial.
-
-```r
-/pool/genomics/figueiroh/SMSC_2023_class/vcf/NN_6samples_HD_PASS_DP5.vcf.gz
-```
-
-For the RoHs plots, we are only interested in the “RG” ???? portion of the files, where it contains the homozygous blocks in the genome. These blocks are important because they are indicative of long stretches of DNA that are identical in the two chromosomes, which can occur when the parents are related.
-
-There are several ways of showing the results, and it will mostly depend on your main question. For example, if you are interested in the frequency of RoHs in different populations, you can create histograms that show the distribution of the length of these blocks. On the other hand, if you want to study the relationship between RoHs and disease, you may want to compare the number and length of RoHs between cases and controls, and perform statistical tests to determine if there is an association. In either case, it is important to consider the study design and the underlying biological mechanisms that could affect the results.
+## a) Calculate RoHs with bcftools
 
 ```bash
 #!/bin/bash
@@ -50,22 +42,25 @@ bcftools roh --AF-dflt 0.4 -I -G30 --rec-rate 1.4e-9 ${VCF_FILE} > ${OUTPUT_PATH
 -   `G30`: This option sets the phred-scaled genotype quality threshold to 30. Genotypes below this quality threshold will be treated as missing.
 -   `-rec-rate 1.4e-9`: This option sets the recombination rate to 1.4e-9.
 
-After running the 'bcftools roh' plugin, you may want to filter and process the output file to retain specific information. For example, you can extract the chromosome, start, and end positions of ROH using the following command:
+## b) Prepare the output file for plotting
+
+'bcftools roh' will create a long output file, but we are only interested in the “RG”  portion of the files, where it contains the homozygous blocks in the genome. These blocks are important because they are indicative of long stretches of DNA that are identical in the two chromosomes, which can occur when the parents are related. Use the bash script below to extract the RoHs and add the population information to each sample.
 
 ```bash
 grep "RG" elephant.roh.txt | cut -f 2,3,6 > elephant.roh.edited.txt
 ```
 
-You can run this command on interactive mode.
+## c) Plot the results using R
 
-Two of the most basic statistics we can obtain from this analysis are the number of runs of homozygosity blocks (NROH) and the total length of genome that showed runs of homozygosity (SROH). These two values provide highly informative data, and the ratio between them is known as the inbreeding coefficient (FROH).
+Next we will use R to plot the RoH results. You can run these commands on your local computer or on interactive mode in the cluster.
 
-You can use the following R script to estimate these values and plot the results.
-Let's start plotting the sum total length of ROH (SROH) versus the total number of ROH (NROH).
+There are several ways of showing the results, and it will mostly depend on your main question. For example, if you are interested in the frequency of RoHs in different populations, you can create histograms that show the distribution of the length of these blocks. On the other hand, if you want to study the relationship between RoHs and disease, you may want to compare the number and length of RoHs between cases and controls, and perform statistical tests to determine if there is an association. In either case, it is important to consider the study design and the underlying biological mechanisms that could affect the results.
+
+Two of the most basic statistics we can obtain from this analysis are the total number of RoH (NROH) and the sum total length of RoH (SROH). You can use the following R script to estimate these values and plot the results. Don't forget to change the working directory.
 
 ```r
 # Set the working directory
-setwd("C:/Users/laris/Documentos/Work/Disciplinas_Courses/2024_ConGen_Namibia/Tutorials")
+setwd("YOUR_PATH")
 
 # Load libraries and read data
 library(tidyverse)
@@ -103,20 +98,22 @@ print(snroh_plot)
 ggsave("sroh_nroh.png", snroh_plot, width = 8, height = 6, dpi = 300)
 ```
 
-> [!QUESTION]
->:elephant::grey_question: How can the comparison between the sum total length of runs of homozygosity (SROH) and the total number of runs of homozygosity (NROH) provide insights into the demographic history of savanna and forest elephants? This paper can help you to find an explanation: [https://drive.google.com/file/d/1VPbgsvdcFHzU7tLRbjR99shMq8xo06QE/view?usp=sharing].
+> [!IMPORTANT]
+>:elephant::grey_question: How can the comparison between the sum total length of runs of homozygosity (SROH) and the total number of runs of homozygosity (NROH) provide insights into the demographic history of savanna and forest elephants? This [paper](https://drive.google.com/file/d/1VPbgsvdcFHzU7tLRbjR99shMq8xo06QE/view?usp=sharing) can help you to find an explanation.
 
 
 Now let’s group the RoH into three categories based on their lengths:
 * 500 kb – 1 Mb
 * 1 Mb – 2 Mb
-* > 2 Mb
+* '>2 Mb
 
-Note that the minimum length for considering a segment as a ROH is already relatively long (500 kb). Why do we set this minimum length?
+> [!IMPORTANT]
+> :elephant::grey_question:  Note that the minimum length for considering a segment as a ROH is already relatively long (500 kb). Why do we set this minimum length?
+> Tips:
+> * We can comparing species with very different levels of genetic diversity!
+> * According to Ceballos et al. 2018, very short RoHs (tens to hundreds of kb) reflect linkage disequilibrium patterns (that are not always considered autozygous); intermediate RoHs (hundreds of kb to 2 Mb) result from background relatedness owing to genetic drift; and long RoHs (over 1–2Mb) arise from recent parental relatedness. Note that these length thresholds are derived from studies on the human population and may vary significantly between species, depending on factors such as genome size, recombination rates, and heterozygosity.
 
-> [!REMEMBER]
-> :elephant: We can comparing species with very different levels of genetic diversity!
-> :elephant: According to Ceballos et al. 2018, very short RoHs (tens to hundreds of kb) reflect linkage disequilibrium patterns (that are not always considered autozygous); intermediate RoHs (hundreds of kb to 2 Mb) result from background relatedness owing to genetic drift; and long RoHs (over 1–2Mb) arise from recent parental relatedness. Note that these length thresholds are derived from studies on the human population and may vary significantly between species, depending on factors such as genome size, recombination rates, and heterozygosity.
+Use the R code below to create categories and plot it.
 
 ```r
 # Create RoH length categories
@@ -148,6 +145,7 @@ stacked_barplot <- summed_roh %>%
 print(stacked_barplot)
 ggsave("stacked_barplot.png", stacked_barplot, width = 8, height = 6, dpi = 300)
 ```
+
 > [!IMPORTANT]
 >:elephant::grey_question: Compare inbreeding level between savanna and forest elephants. When did the inbreeding happen?
 
