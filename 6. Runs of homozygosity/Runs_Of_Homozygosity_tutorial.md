@@ -103,7 +103,7 @@ print(snroh_plot)
 ggsave("sroh_nroh.png", snroh_plot, width = 8, height = 6, dpi = 300)
 ```
 
-> [!IMPORTANT]
+> [!QUESTION]
 >:elephant::grey_question: How can the comparison between the sum total length of runs of homozygosity (SROH) and the total number of runs of homozygosity (NROH) provide insights into the demographic history of savanna and forest elephants? This paper can help you to find an explanation: [https://drive.google.com/file/d/1VPbgsvdcFHzU7tLRbjR99shMq8xo06QE/view?usp=sharing].
 
 
@@ -111,10 +111,10 @@ Now let’s group the RoH into three categories based on their lengths:
 * 500 kb – 1 Mb
 * 1 Mb – 2 Mb
 * > 2 Mb
+
 Note that the minimum length for considering a segment as a ROH is already relatively long (500 kb). Why do we set this minimum length?
 
-> [!HIDE]
-Remember:
+> [!REMEMBER]
 > :elephant: We can comparing species with very different levels of genetic diversity!
 > :elephant: According to Ceballos et al. 2018, very short RoHs (tens to hundreds of kb) reflect linkage disequilibrium patterns (that are not always considered autozygous); intermediate RoHs (hundreds of kb to 2 Mb) result from background relatedness owing to genetic drift; and long RoHs (over 1–2Mb) arise from recent parental relatedness. Note that these length thresholds are derived from studies on the human population and may vary significantly between species, depending on factors such as genome size, recombination rates, and heterozygosity.
 
